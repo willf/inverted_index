@@ -18,3 +18,16 @@ A simple in-memory inverted index system, with a modest query language.
     results, err = i.query("babies")
     print(results)
     {1,2,3}
+    
+Any hashable object can the "document", and a tokenizer can be specified to tokenize the
+text to index. 
+
+The query language is very simple: it understands AND and OR, and parentheses. For example:
+
+    term OR term
+    term AND term OR term
+    (term AND term) OR term
+    
+`AND` and `OR` have equal precedence, so use parentheses to disambiguate. 
+
+I'm pretty sure you don't want to use this in production code :) 
