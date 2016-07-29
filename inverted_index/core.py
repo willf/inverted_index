@@ -59,7 +59,7 @@ class Index(object):
         def is_rp(token):
             return type(token) == str and token == ')'
 
-        def apply_operator(operator, args):
+        def apply_operator(op, args):
             # print(operator, args)
             if is_or(op):
                 v = reduce(lambda s1, s2: s1.union(s2), args, set())
@@ -78,6 +78,15 @@ class Index(object):
 
         value_stack = list()
         operator_stack = list()
+
+        def reduce_operators():
+            # print("reducing inside")
+            op = operator_stack.pop()
+            args = [value_stack.pop() for i in range(self.cardinality(op))]
+            v = apply_operator(op, args)
+            # print("op", op, "s1", s1, "s2", s2, "value", v)
+            value_stack.append(v)
+
         # print("processing tokens")
         for token in expr:
             # print("current token is", token)
@@ -91,23 +100,14 @@ class Index(object):
                 # print("found a rp", token)
                 while len(operator_stack) > 0 and not is_lp(operator_stack[
                         -1]):
-                    # print("reducing inside")
-                    op = operator_stack.pop()
-                    args = [value_stack.pop()
-                            for i in range(self.cardinality(op))]
-                    v = apply_operator(op, args)
-                    # print("op", op, "s1", s1, "s2", s2, "value", v)
-                    value_stack.append(v)
+                    reduce_operators()
                 operator_stack.pop()  # pop off '('
             elif is_op(token):
                 # print("found AND or OR, adding to operator_stack")
                 operator_stack.append(token)
         # print("operating on operator stack")
         while len(operator_stack) > 0:
-            op = operator_stack.pop()
-            args = [value_stack.pop() for i in range(self.cardinality(op))]
-            v = apply_operator(op, args)
-            value_stack.append(v)
+            reduce_operators()
         # print("reducing values")
         return reduce_by_intersection(value_stack)
 
