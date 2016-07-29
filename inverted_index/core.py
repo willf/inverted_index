@@ -1,34 +1,62 @@
 # -*- coding: utf-8 -*-
-import logging
+import collections
 import warnings
 from functools import reduce
 
 
 class Index(object):
     def __init__(self):
-        self.index = dict()
+        self.inverted_index = dict()
         self.reserved = {'AND': 2, 'OR': 2, '(': None, ')': None, 'NOT': 1}
-        self.documents = set()
+        self.document_counts = collections.Counter()
+        self.token_counts = collections.Counter()
 
     def cardinality(self, operator):
         return self.reserved[operator]
 
-    def add_token(self, document_id, token):
-        self.documents.add(document_id)
-        if token not in self.index:
-            self.index[token] = set()
-        self.index[token].add(document_id)
+    def documents(self):
+        return set(self.document_counts.keys())
 
-    def add(self, document_id, sentence, tokenizer=lambda s: s.split()):
-        # print(sentence)
-        self.add_tokens(document_id, tokenizer(sentence))
+    def index_token(self, document_id, token):
+        self.document_counts[document_id] += 1
+        self.token_counts[token] += 1
+        if token not in self.inverted_index:
+            self.inverted_index[token] = collections.Counter()
+        self.inverted_index[token][document_id] += 1
 
-    def add_tokens(self, document_id, tokens):
+    def index_tokens(self, document_id, tokens):
         for token in tokens:
-            self.add_token(document_id, token)
+            self.index_token(document_id, token)
+
+    def index(self, document_id, sentence, tokenizer=lambda s: s.split()):
+        self.index_tokens(document_id, tokenizer(sentence))
+
+    def unindex(self, document_id):
+        removes = []
+        for token in self.inverted_index:
+            if document_id in self.inverted_index[token]:
+                # decrease inverted_index count
+                token_count = self.inverted_index[token][document_id]
+                del self.inverted_index[token][document_id]
+                count = self.inverted_index[token][document_id]
+                # decrease doc count
+                self.document_counts[document_id] -= token_count
+                count = self.document_counts[document_id]
+                if count == 0:
+                    del self.document_counts[document_id]
+                self.token_counts[token] -= token_count
+                count = self.token_counts[token]
+
+                if count == 0:
+                    del self.token_counts[token]
+            if len(self.inverted_index[token]) == 0:
+                removes.append(token)
+        for token in removes:
+            del self.inverted_index[token]
 
     def query_token(self, token):
-        return self.index.get(token, set())
+        return set(
+            self.inverted_index.get(token, collections.Counter()).keys())
 
     def query(self, q):
         try:
@@ -70,7 +98,7 @@ class Index(object):
                 # print("Returning value", v)
                 return v
             elif is_not(op):
-                v = self.documents.difference(args[0])
+                v = self.documents().difference(args[0])
                 return v
             else:
                 warnings.warn("Unknown operator: {0}".format(op))
@@ -103,7 +131,7 @@ class Index(object):
                     reduce_operators()
                 operator_stack.pop()  # pop off '('
             elif is_op(token):
-                # print("found AND or OR, adding to operator_stack")
+                # print("found AND or OR, indexing to operator_stack")
                 operator_stack.append(token)
         # print("operating on operator stack")
         while len(operator_stack) > 0:

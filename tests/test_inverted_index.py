@@ -30,69 +30,70 @@ class InvertedIndexTextSuite(unittest.TestCase):
             [sett(1, 2, 3, 4, 5), sett(3, 4, 5), sett(3, 4), sett(3)])
         assert s == sett(3)
 
-    def test_add_token(self):
+    def test_index_token(self):
         i = inverted_index.Index()
-        i.add_token(1, "test")
-        assert len(i.index.get("test", set())) > 0
+        i.index_token(1, "test")
+        assert len(i.inverted_index.get("test", set())) > 0
 
-    def test_add_tokens(self):
+    def test_index_tokens(self):
         i = inverted_index.Index()
-        i.add_tokens(1, ["a", 'b'])
-        assert len(i.index) == 2
+        i.index_tokens(1, ["a", 'b'])
+        assert len(i.inverted_index) == 2
 
-    def test_add_default(self):
+    def test_index_default(self):
         i = inverted_index.Index()
-        i.add(1, "this is the day they give babies away")
-        assert len(i.index) == 8
+        i.index(1, "this is the day they give babies away")
+        assert len(i.inverted_index) == 8
 
-    def test_add_with_tokenizer(self):
+    def test_index_with_tokenizer(self):
         i = inverted_index.Index()
-        i.add(1,
-              "this is the day they give babies away",
-              tokenizer=lambda s: [s])
-        assert len(i.index) == 1
+        i.index(
+            1,
+            "this is the day they give babies away",
+            tokenizer=lambda s: [s])
+        assert len(i.inverted_index) == 1
 
     def test_query_simple(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('love')
         assert err is None
         assert s == set([1, 2, 3])
 
     def test_query_simple_parens(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('(((love)))')
         assert err is None
         assert s == set([1, 2, 3])
 
     def test_query_simple_err(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('(((love')
         assert err is not None
         assert s == set()
 
     def test_query_simple_OR(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('liz OR mark')
         assert err is None
         assert s == set([2, 3])
 
     def test_query_simple_AND(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('liz AND mark')
         assert err is None
         assert s == set()
@@ -102,14 +103,13 @@ class InvertedIndexTextSuite(unittest.TestCase):
 
     def test_query_simple_NOT(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
         s, err = i.query('NOT bess')
         print(s)
         a, err = i.query("bess")
-        v = i.documents.difference(a)
-        print(v)
+        v = i.documents().difference(a)
         assert err is None
         assert s == set([2, 3])
         s, err = i.query('NOT i')
@@ -118,18 +118,19 @@ class InvertedIndexTextSuite(unittest.TestCase):
 
     def test_query_fancy(self):
         i = inverted_index.Index()
-        i.add(1, "i love bess")
-        i.add(2, "i love liz")
-        i.add(3, "i love mark")
-        i.add(4, 'you hate hitler')
-        s, err = i.query("((love AND i) AND bess) OR ((((hitler))))")
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
+        i.index(4, 'you hate hitler')
+        s, err = i.query(
+            "((love AND i) AND bess AND NOT mark) OR ((((hitler))))")
         assert err is None
         assert s == set([1, 4])
 
     def test_query_and_or_lower(self):
         i = inverted_index.Index()
-        i.add(1, "i love a good or")
-        i.add(2, "and i love a good and")
+        i.index(1, "i love a good or")
+        i.index(2, "and i love a good and")
         s, err = i.query('or')
         assert err is None
         assert s == set([1])
@@ -146,12 +147,41 @@ class InvertedIndexTextSuite(unittest.TestCase):
 
     def test_hashable(self):
         i = inverted_index.Index()
-        i.add("document_1", "i love bess")
-        i.add("document_2", "i love liz")
-        i.add("document_3", "i love mark")
+        i.index("document_1", "i love bess")
+        i.index("document_2", "i love liz")
+        i.index("document_3", "i love mark")
         s, err = i.query('bess')
         assert err is None
         assert s == set(["document_1"])
+
+    def test_unindex(self):
+        i = inverted_index.Index()
+        i.index(1, "i love bess")
+        i.unindex(1)
+        assert len(i.inverted_index) == 0
+        assert len(i.token_counts) == 0
+        assert len(i.document_counts) == 0
+
+    def test_unindex_2(self):
+        i = inverted_index.Index()
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
+        i.index(4, 'you hate hitler')
+        i.unindex(1)
+        assert len(i.documents()) == 3
+        s, err = i.query("love")
+        assert err is None
+        assert s == set([2, 3])
+
+    def test_index_non_existant(self):
+        i = inverted_index.Index()
+        i.index(1, "i love bess")
+        i.index(2, "i love liz")
+        i.index(3, "i love mark")
+        i.index(4, 'you hate hitler')
+        i.unindex(11111111)
+        assert len(i.documents()) == 4
 
 
 if __name__ == '__main__':
