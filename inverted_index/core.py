@@ -10,6 +10,12 @@ class Index(object):
         self.reserved = {'AND': 2, 'OR': 2, '(': None, ')': None, 'NOT': 1}
         self.document_counts = collections.Counter()
         self.token_counts = collections.Counter()
+        self.operations = {
+            "AND": reduce_by_intersection,
+            "OR":
+            lambda args: reduce(lambda s1, s2: s1.union(s2), args, set()),
+            "NOT": lambda args: self.documents().difference(args[0])
+        }
 
     def cardinality(self, operator):
         return self.reserved[operator]
@@ -67,39 +73,21 @@ class Index(object):
 
     def process_query(self, expr):
         def is_term(token):
-            return type(token) == str and token not in self.reserved
-
-        def is_or(token):
-            return type(token) == str and token == 'OR'
-
-        def is_and(token):
-            return type(token) == str and token == 'AND'
-
-        def is_not(token):
-            return type(token) == str and token == 'NOT'
+            return token not in self.reserved
 
         def is_op(token):
-            return is_or(token) or is_and(token) or is_not(token)
+            return token in self.operations
 
         def is_lp(token):
-            return type(token) == str and token == '('
+            return token == '('
 
         def is_rp(token):
-            return type(token) == str and token == ')'
+            return token == ')'
 
         def apply_operator(op, args):
-            # print(operator, args)
-            if is_or(op):
-                v = reduce(lambda s1, s2: s1.union(s2), args, set())
-                # print("returning value", v)
-                return v
-            elif is_and(op):
-                v = reduce_by_intersection(args)
-                # print("Returning value", v)
-                return v
-            elif is_not(op):
-                v = self.documents().difference(args[0])
-                return v
+            fn = self.operations.get(op, None)
+            if fn:
+                return fn(args)
             else:
                 warnings.warn("Unknown operator: {0}".format(op))
                 return set()
