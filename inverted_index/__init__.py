@@ -1,1 +1,1 @@
-from .core import Index
+from .core import Index, reduce_by_intersection

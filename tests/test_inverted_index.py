@@ -5,9 +5,30 @@ import unittest
 from .context import inverted_index
 
 
+def sett(*args):
+    return set(args)
+
+
 class InvertedIndexTextSuite(unittest.TestCase):
     def test_create_index(self):
         i = inverted_index.Index()
+
+    def test_reduce_by_intersection_empty(self):
+        s = inverted_index.reduce_by_intersection([])
+        assert s == set()
+
+    def test_reduce_by_intersection_1(self):
+        s = inverted_index.reduce_by_intersection([sett(1, 2, 3)])
+        assert s == sett(1, 2, 3)
+
+    def test_reduce_by_intersection_2(self):
+        s = inverted_index.reduce_by_intersection([sett(1, 2, 3), sett(2, 3)])
+        assert s == sett(2, 3)
+
+    def test_reduce_by_intersection_many(self):
+        s = inverted_index.reduce_by_intersection(
+            [sett(1, 2, 3, 4, 5), sett(3, 4, 5), sett(3, 4), sett(3)])
+        assert s == sett(3)
 
     def test_add_token(self):
         i = inverted_index.Index()
@@ -79,6 +100,22 @@ class InvertedIndexTextSuite(unittest.TestCase):
         assert err is None
         assert s == set([1, 2, 3])
 
+    def test_query_simple_NOT(self):
+        i = inverted_index.Index()
+        i.add(1, "i love bess")
+        i.add(2, "i love liz")
+        i.add(3, "i love mark")
+        s, err = i.query('NOT bess')
+        print(s)
+        a, err = i.query("bess")
+        v = i.documents.difference(a)
+        print(v)
+        assert err is None
+        assert s == set([2, 3])
+        s, err = i.query('NOT i')
+        assert err is None
+        assert s == set()
+
     def test_query_fancy(self):
         i = inverted_index.Index()
         i.add(1, "i love bess")
@@ -100,6 +137,7 @@ class InvertedIndexTextSuite(unittest.TestCase):
         assert err is None
         assert s == set([2])
         s, err = i.query('or OR and')
+        print(err)
         assert err is None
         assert s == set([1, 2])
         s, err = i.query('or AND and')

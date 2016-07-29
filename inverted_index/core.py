@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import warnings
 from functools import reduce
 
@@ -6,9 +7,14 @@ from functools import reduce
 class Index(object):
     def __init__(self):
         self.index = dict()
-        self.reserved = set(['AND', 'OR', '(', ')'])
+        self.reserved = {'AND': 2, 'OR': 2, '(': None, ')': None, 'NOT': 1}
+        self.documents = set()
+
+    def cardinality(self, operator):
+        return self.reserved[operator]
 
     def add_token(self, document_id, token):
+        self.documents.add(document_id)
         if token not in self.index:
             self.index[token] = set()
         self.index[token].add(document_id)
@@ -41,21 +47,30 @@ class Index(object):
         def is_and(token):
             return type(token) == str and token == 'AND'
 
+        def is_not(token):
+            return type(token) == str and token == 'NOT'
+
+        def is_op(token):
+            return is_or(token) or is_and(token) or is_not(token)
+
         def is_lp(token):
             return type(token) == str and token == '('
 
         def is_rp(token):
             return type(token) == str and token == ')'
 
-        def apply_operator(operator, s1, s2):
-            # print(operator, s1, s2)
+        def apply_operator(operator, args):
+            # print(operator, args)
             if is_or(op):
-                v = s1.union(s2)
+                v = reduce(lambda s1, s2: s1.union(s2), args, set())
                 # print("returning value", v)
                 return v
             elif is_and(op):
-                v = s1.intersection(s2)
+                v = reduce_by_intersection(args)
                 # print("Returning value", v)
+                return v
+            elif is_not(op):
+                v = self.documents.difference(args[0])
                 return v
             else:
                 warnings.warn("Unknown operator: {0}".format(op))
@@ -78,28 +93,29 @@ class Index(object):
                         -1]):
                     # print("reducing inside")
                     op = operator_stack.pop()
-                    s1 = value_stack.pop()
-                    s2 = value_stack.pop()
-                    v = apply_operator(op, s1, s2)
+                    args = [value_stack.pop()
+                            for i in range(self.cardinality(op))]
+                    v = apply_operator(op, args)
                     # print("op", op, "s1", s1, "s2", s2, "value", v)
                     value_stack.append(v)
                 operator_stack.pop()  # pop off '('
-            elif is_or(token) or is_and(token):
+            elif is_op(token):
                 # print("found AND or OR, adding to operator_stack")
                 operator_stack.append(token)
         # print("operating on operator stack")
         while len(operator_stack) > 0:
             op = operator_stack.pop()
-            s1 = value_stack.pop()
-            s2 = value_stack.pop()
-            v = apply_operator(op, s1, s2)
+            args = [value_stack.pop() for i in range(self.cardinality(op))]
+            v = apply_operator(op, args)
             value_stack.append(v)
         # print("reducing values")
-        try:  # treat the value stack as ands
-            base = value_stack.pop()
-            # print("base is", base, "rest is", value_stack)
-            return reduce(lambda s1, s2: s1.intersection(s2), value_stack,
-                          base)
-        except IndexError:
-            # print("returning empty set from failure at end")
-            return set()
+        return reduce_by_intersection(value_stack)
+
+
+def reduce_by_intersection(sets):
+    if len(sets) == 0:
+        return set()
+    else:
+        head = sets[0]
+        tail = sets[1:]
+        return reduce(lambda s1, s2: s1.intersection(s2), tail, head)
