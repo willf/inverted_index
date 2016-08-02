@@ -27,7 +27,7 @@ class Index(object):
     def document(self, document_id):
         try:
             return (self.documents[document_id], None)
-        except ValueError as e:
+        except KeyError as e:
             return (None, e)
 
     def index_token(self, document_id, token):

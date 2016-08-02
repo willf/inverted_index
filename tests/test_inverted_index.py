@@ -224,6 +224,11 @@ class InvertedIndexTextSuite(unittest.TestCase):
         assert err is None
         assert s == set([1])
 
+    def test_doc_not_found(self):
+        i = inverted_index.Index()
+        d, err = i.document('notfound')
+        assert err is not None
+
 
 if __name__ == '__main__':
     unittest.main()
