@@ -10,18 +10,25 @@ class Index(object):
         self.reserved = {'AND': 2, 'OR': 2, '(': None, ')': None, 'NOT': 1}
         self.document_counts = collections.Counter()
         self.token_counts = collections.Counter()
+        self.documents = dict()
         self.operations = {
             "AND": reduce_by_intersection,
             "OR":
             lambda args: reduce(lambda s1, s2: s1.union(s2), args, set()),
-            "NOT": lambda args: self.documents().difference(args[0])
+            "NOT": lambda args: self.document_ids().difference(args[0])
         }
 
     def cardinality(self, operator):
         return self.reserved[operator]
 
-    def documents(self):
+    def document_ids(self):
         return set(self.document_counts.keys())
+
+    def document(self, document_id):
+        try:
+            return (self.documents[document_id], None)
+        except ValueError as e:
+            return (None, e)
 
     def index_token(self, document_id, token):
         self.document_counts[document_id] += 1
@@ -37,9 +44,51 @@ class Index(object):
     def index(self, document_id, sentence, tokenizer=lambda s: s.split()):
         self.index_tokens(document_id, tokenizer(sentence))
 
-    def unindex(self, document_id):
+    def index_document(self,
+                       document_id,
+                       document,
+                       tokenizer=lambda s: s.split()):
+        for key, value in document.items():
+            self.index_field(document_id, key, to_list(value), tokenizer)
+        self.documents[document_id] = document
+
+    def index_field(self,
+                    document_id,
+                    field_name,
+                    field_values,
+                    tokenizer=lambda s: s.split()):
+        for value in to_list(field_values):
+            self.index(document_id, value, tokenizer)
+            tokens = ["{0}:{1}".format(field_name, token)
+                      for token in tokenizer(value)]
+            self.index_tokens(document_id, tokens)
+
+    def unindex_field(self,
+                      document_id,
+                      field_name,
+                      field_values=None,
+                      tokenizer=lambda s: s.split()):
+        if not field_values:
+            document, err = self.document(document_id)
+            if err:
+                field_values = []
+            else:
+                field_values = to_list(document.get(field_name, []))
+        for value in field_values:
+            self.unindex_string(document_id, value, tokenizer)
+            tokens = ["{0}:{1}".format(field_name, token)
+                      for token in tokenizer(value)]
+            self.unindex_tokens(document_id, tokens)
+
+    def unindex_string(self,
+                       document_id,
+                       sentence,
+                       tokenizer=lambda s: s.split()):
+        self.unindex_tokens(document_id, tokenizer(sentence))
+
+    def unindex_tokens(self, document_id, tokens):
         removes = []
-        for token in self.inverted_index:
+        for token in tokens:
             if document_id in self.inverted_index[token]:
                 # decrease inverted_index count
                 token_count = self.inverted_index[token][document_id]
@@ -59,6 +108,17 @@ class Index(object):
                 removes.append(token)
         for token in removes:
             del self.inverted_index[token]
+
+    def unindex_document(self, document_id, tokenizer=lambda s: s.split()):
+        document, err = self.document(document_id)
+        if document:
+            for key, value in document.items():
+                self.unindex_field(document_id, key, to_list(value), tokenizer)
+            if document_id in self.documents:
+                del self.documents[document_id]
+
+    def unindex(self, document_id):
+        self.unindex_tokens(document_id, self.inverted_index.keys())
 
     def query_token(self, token):
         return set(
@@ -135,3 +195,13 @@ def reduce_by_intersection(sets):
         head = sets[0]
         tail = sets[1:]
         return reduce(lambda s1, s2: s1.intersection(s2), tail, head)
+
+
+def to_list(item):
+    if type(item) is str:
+        return [item]
+    if type(item) is list:
+        return item
+    if getattr(item, '__iter__', None):
+        list(item)
+    return [item]

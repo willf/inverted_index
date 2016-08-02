@@ -109,7 +109,7 @@ class InvertedIndexTextSuite(unittest.TestCase):
         s, err = i.query('NOT bess')
         print(s)
         a, err = i.query("bess")
-        v = i.documents().difference(a)
+        v = i.document_ids().difference(a)
         assert err is None
         assert s == set([2, 3])
         s, err = i.query('NOT i')
@@ -169,7 +169,7 @@ class InvertedIndexTextSuite(unittest.TestCase):
         i.index(3, "i love mark")
         i.index(4, 'you hate hitler')
         i.unindex(1)
-        assert len(i.documents()) == 3
+        assert len(i.document_ids()) == 3
         s, err = i.query("love")
         assert err is None
         assert s == set([2, 3])
@@ -181,7 +181,48 @@ class InvertedIndexTextSuite(unittest.TestCase):
         i.index(3, "i love mark")
         i.index(4, 'you hate hitler')
         i.unindex(11111111)
-        assert len(i.documents()) == 4
+        assert len(i.document_ids()) == 4
+
+    def test_index_document_text(self):
+        i = inverted_index.Index()
+        i.index_document(1, {'identifier': 'document_1',
+                             'title': 'I love bess'})
+        s, err = i.query("bess")
+        assert err is None
+        assert s == set([1])
+
+    def test_index_document_field(self):
+        i = inverted_index.Index()
+        i.index_document(1, {'identifier': 'document_1',
+                             'title': 'I love bess'})
+        s, err = i.query("identifier:document_1")
+        assert err is None
+        assert s == set([1])
+
+    def test_unindex_document(self):
+        i = inverted_index.Index()
+        i.index_document(1, {'identifier': 'document_1',
+                             'title': 'I love bess'})
+        assert len(i.document_ids()) == 1
+        i.unindex_document(1)
+        assert len(i.document_ids()) == 0
+        assert len(i.inverted_index) == 0
+
+    def test_index_unindex_field_values(self):
+        i = inverted_index.Index()
+        i.index_document(1, {'identifier': 'document_1',
+                             'title': 'I love bess'})
+        s, err = i.query("title:bess")
+        assert err is None
+        assert s == set([1])
+        i.unindex_field(1, 'title')
+        s, err = i.query("title:bess")
+        assert err is None
+        assert s == set()
+        i.index_field(1, 'title', 'I like ike')
+        s, err = i.query("title:ike")
+        assert err is None
+        assert s == set([1])
 
 
 if __name__ == '__main__':
